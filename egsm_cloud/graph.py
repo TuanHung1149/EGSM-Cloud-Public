@@ -20,7 +20,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from cage_cloud.schema import GraphEdge, GraphNode, VerificationResult
+from egsm_cloud.schema import GraphEdge, GraphNode, VerificationResult
 
 
 # Node type constants

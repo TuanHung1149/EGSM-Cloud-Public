@@ -1,8 +1,8 @@
-# CAGE-Cloud
+# EGSM-Cloud
 
-**Evidence-Grounded Autonomous Cloud Penetration Testing with Authoritative Structured State**
+**Evidence-Governed State Management for Autonomous Cloud-Oriented Penetration Testing**
 
-CAGE-Cloud is an autonomous cloud-oriented penetration-testing framework in
+EGSM-Cloud is an autonomous cloud-oriented penetration-testing framework in
 which a persistent normalized runner state is the operational authority. A
 Typed Agentic Evidence Graph is materialized from committed state to provide
 bounded relational context; it is not an independent source of truth. LLM
@@ -14,6 +14,8 @@ This repository contains the framework, adapted PentestAgent-style and
 VulnBot-style comparison pipelines, the external flag protocol, and evaluation
 code accompanying the paper. It is intended only for authorized, isolated
 laboratories.
+
+Public data and paper bundle: [EGSM-Cloud Google Drive folder](https://drive.google.com/drive/folders/19v0E8aWT-hqnKJmQ4N7mIlB0aqz0GXfo)
 
 ## Architecture
 
@@ -43,7 +45,7 @@ establish objective completion.
 ## Repository Layout
 
 ```text
-cage_cloud/
+egsm_cloud/
   schema.py                typed action, evidence, graph, and verifier records
   graph.py                 state-derived graph and canonical progress signature
   skill_router.py          eight-family router and contextual-example retrieval
@@ -67,8 +69,8 @@ evaluation/
 ## Installation
 
 ```bash
-git clone https://github.com/TuanHung1149/CAGE-Cloud-Public.git
-cd CAGE-Cloud-Public
+git clone https://github.com/TuanHung1149/EGSM-Cloud-Public.git
+cd EGSM-Cloud-Public
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -81,7 +83,7 @@ API keys are supplied at runtime and must not be committed.
 export API_URL="http://localhost:8000/v1"
 export API_KEY="..."
 
-python -m cage_cloud.orchestrator \
+python -m egsm_cloud.orchestrator \
   --api-url "$API_URL" \
   --api-key "$API_KEY" \
   --target-url "http://localhost:8080" \
@@ -98,31 +100,30 @@ phi(i,r) = FLAG{ Hex[ HMAC(k_i, run_id || nonce) ] }
 ```
 
 `k_i`, the expected flag, and validation metadata remain in the evaluation
-control plane. The assessed pipeline receives none of them. When the protected
-condition is satisfied, the target writes a `target_events.jsonl` event with the
-run ID, scenario ID, security-condition ID, timestamp, flag digest, and
-`condition_satisfied: true`.
+control plane. The assessed pipeline receives none of them. Issuance provenance
+is archived separately, and the target writes an authenticated
+`condition_events.jsonl` event when the protected condition releases the flag.
 
 The oracle reports a positive outcome only when all conditions in paper Eq. 27
 hold:
 
-1. the exact run-specific flag occurs in retained execution observations;
-2. a matching target-side issuance event exists; and
-3. the scenario-defined security condition is confirmed.
+1. `E`: the exact run-specific flag occurs in retained execution observations;
+2. `I`: its run-bound issuance provenance is cryptographically valid; and
+3. `C`: an authenticated target-side event confirms the scenario condition.
 
 ```bash
 python -m testbed.provision \
   --cve-list cves.txt \
-  --results-dir results/cage-qwen-base \
-  --architecture CAGE-Cloud \
+  --results-dir results/egsm-qwen-base \
+  --architecture EGSM-Cloud \
   --backbone Qwen2.5-32B-base
 
-python -m testbed.flag_oracle results/cage-qwen-base
-python evaluation/compute_metrics.py results/cage-qwen-base
+python -m testbed.flag_oracle results/egsm-qwen-base
+python evaluation/compute_metrics.py results/egsm-qwen-base
 ```
 
-The manifest and target events are evaluation-control artifacts and are ignored
-by Git.
+The manifest, issuance provenance, and condition events are evaluation-control
+artifacts and are ignored by Git.
 
 ## Metrics
 
@@ -132,24 +133,21 @@ as median `[Q1, Q3]`; `Tok@Req`, `Req@F`, `Tok@F`, FPMT, and FPkR are pooled
 ratios.
 
 The paper evaluates 86 validated Docker scenarios under three architectures and
-six LLM configurations, for 1,548 runs. CAGE-Cloud recovers 53 flags in its 516
+six LLM configurations, for 1,548 runs. EGSM-Cloud recovers 53 flags in its 516
 runs (FRR 10.3%; CVE-cluster bootstrap 95% interval 4.7-16.9%). The adapted
 PentestAgent-style and VulnBot-style pipelines each recover 0/516 flags. These
-numbers apply only to the paper's controlled protocol and do not imply a general
-CVE exploitation rate.
+figures report outcomes under the paper's controlled protocol.
 
-## Reproducibility Scope
+## Release Contents
 
-The public repository intentionally excludes control-plane secrets, expected
-flags, raw execution traces, model weights, and other sensitive/generated
-artifacts. The 328-record Planner-specialization corpus and the full validated
-scenario archive are versioned separately in the research release. Their absence
-from this repository must not be interpreted as a claim that the complete 1,548
-run experiment can be reproduced from this checkout alone.
+This repository provides the framework, comparison implementations, evaluation
+code, and protocol tests. The companion public Drive release provides the
+Planner-specialisation corpus, scenario archive, paper source, and benchmark
+tables while control-plane secrets remain isolated from assessed pipelines.
 
 ## Responsible Use
 
-Use CAGE-Cloud only against systems for which you have explicit authorization.
+Use EGSM-Cloud only against systems for which you have explicit authorization.
 The paper's experiments use freshly provisioned, researcher-controlled Docker
 laboratories, scenario-scoped credentials, timeouts, bounded output capture, and
 non-destructive policies. The controls reduce risk but are not a formally
@@ -158,11 +156,12 @@ verified sandbox for arbitrary untrusted code.
 ## Citation
 
 ```bibtex
-@article{nguyen2026cagecloud,
-  title  = {CAGE-Cloud: Evidence-Grounded Autonomous Cloud Penetration
-            Testing with Authoritative Structured State},
-  author = {Nguyen Huu, Quyen and Nguyen Tuan, Hung and Huynh Phan Thi, Nhu
-            and Le Pham Khanh, Linh and Nguyen Thi My, Duyen and Pham, Van-Hau},
+@article{nguyen2026egsmcloud,
+  title  = {EGSM-Cloud: Evidence-Governed State Management for Autonomous
+            Cloud-Oriented Penetration Testing},
+  author = {Nguyen Tuan, Hung and Phan Thi Nhu, Huynh and
+            Le Pham Khanh, Linh and Nguyen Thi My, Duyen and
+            Nguyen Huu, Quyen and Pham, Van-Hau},
   year   = {2026}
 }
 ```

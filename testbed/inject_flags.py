@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Update CVE lab vulnerable endpoints to read flags from CAGE_PROTECTED_FLAG.
+"""Update CVE lab vulnerable endpoints to read flags from EGSM_PROTECTED_FLAG.
 
 This is an idempotent converter for the dynamic flag protocol (paper Eq. 26).
 Instead of baking static flags like FLAG{CVE-YYYY-NNNNN_pwned}, labs now read
-the run-specific flag from the CAGE_PROTECTED_FLAG environment variable and
+the run-specific flag from the EGSM_PROTECTED_FLAG environment variable and
 expose it only behind the vulnerable endpoint.
 
 For each lab file, replace literal flag strings with:
-    os.environ.get("CAGE_PROTECTED_FLAG", "")
+    os.environ.get("EGSM_PROTECTED_FLAG", "")
 
 This ensures:
   1. The flag is never visible in prompts or agent input
@@ -122,7 +122,7 @@ CVE_EXPLOIT_MAP = {
 
 
 def update_lab_file(filepath: Path, cve_id: str, dry_run: bool = False) -> Tuple[bool, str]:
-    """Replace static flag with dynamic CAGE_PROTECTED_FLAG reference.
+    """Replace static flag with dynamic EGSM_PROTECTED_FLAG reference.
 
     Returns (success, message).
     """
@@ -133,7 +133,7 @@ def update_lab_file(filepath: Path, cve_id: str, dry_run: bool = False) -> Tuple
 
     old_flag = f"FLAG{{{cve_id}_pwned}}"
     if old_flag not in content:
-        message = "already uses dynamic flag" if "CAGE_PROTECTED_FLAG" in content else "no static flag found (OK)"
+        message = "already uses dynamic flag" if "EGSM_PROTECTED_FLAG" in content else "no static flag found (OK)"
         return True, message
 
     try:
@@ -157,7 +157,7 @@ def update_lab_file(filepath: Path, cve_id: str, dry_run: bool = False) -> Tuple
             for index, part in enumerate(parts):
                 expression_parts.append(repr(part))
                 if index < len(parts) - 1:
-                    expression_parts.append('os.environ.get("CAGE_PROTECTED_FLAG", "")')
+                    expression_parts.append('os.environ.get("EGSM_PROTECTED_FLAG", "")')
             replacement = "(" + " + ".join(expression_parts) + ")"
             token = tokenize.TokenInfo(
                 token.type,
@@ -169,7 +169,7 @@ def update_lab_file(filepath: Path, cve_id: str, dry_run: bool = False) -> Tuple
         elif token.type == tokenize.COMMENT and old_flag in token.string:
             token = tokenize.TokenInfo(
                 token.type,
-                token.string.replace(old_flag, "<CAGE_PROTECTED_FLAG>"),
+                token.string.replace(old_flag, "<EGSM_PROTECTED_FLAG>"),
                 token.start,
                 token.end,
                 token.line,
@@ -219,13 +219,13 @@ def update_lab_file(filepath: Path, cve_id: str, dry_run: bool = False) -> Tuple
 
 
 def main() -> int:
-    """Convert labs to use dynamic CAGE_PROTECTED_FLAG."""
+    """Convert labs to use dynamic EGSM_PROTECTED_FLAG."""
     ap = argparse.ArgumentParser(
-        description="Update CVE labs to use dynamic CAGE_PROTECTED_FLAG.",
+        description="Update CVE labs to use dynamic EGSM_PROTECTED_FLAG.",
     )
     ap.add_argument(
         "--labs-dir",
-        default="/root/NCKH/CloudPentest/cloud_cve_labs",
+        default="/root/NCKH/EGSM-Cloud/cloud_cve_labs",
         help="Path to cloud_cve_labs directory",
     )
     ap.add_argument(
@@ -240,7 +240,7 @@ def main() -> int:
         print(f"ERROR: labs directory not found: {labs_dir}")
         return 1
 
-    print(f"Converting {len(CVE_EXPLOIT_MAP)} labs to use CAGE_PROTECTED_FLAG")
+    print(f"Converting {len(CVE_EXPLOIT_MAP)} labs to use EGSM_PROTECTED_FLAG")
     print(f"Labs directory: {labs_dir}")
     if args.dry_run:
         print("DRY RUN - no changes will be written")

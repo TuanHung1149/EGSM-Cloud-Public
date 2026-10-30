@@ -1,250 +1,232 @@
 #!/usr/bin/env python3
-"""Architecture-independent external outcome oracle (paper Eq. 27).
-
-A positive run requires the exact run-specific flag, a matching target-side
-issuance event, and confirmation of the scenario-defined security condition.
-The control-plane manifest is never exposed to the assessed pipeline.
-"""
 
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
-import math
+import re
 import sys
 from dataclasses import asdict, dataclass
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List
+from typing import Dict, Iterable, List, Mapping
 
+try:
+    from testbed.flag_issuer import load_issuance_record, verify_issuance_record
+except ModuleNotFoundError:
+    from flag_issuer import load_issuance_record, verify_issuance_record
 
 MANIFEST_NAME = "flags_expected.json"
-TARGET_EVENTS_NAME = "target_events.jsonl"
+PROVENANCE_NAME = "issuance_provenance.jsonl"
+CONDITION_EVENTS_NAME = "condition_events.jsonl"
+FLAG_RE = re.compile(r"^FLAG\{[0-9a-f]{64}\}$")
 
 
 @dataclass(frozen=True)
-class ExternalOutcome:
-    run_id: str
+class Outcome:
     scenario_id: str
-    exact_match: bool
-    target_issued: bool
-    condition_satisfied: bool
-    external_success: bool
-    protocol_errors: tuple[str, ...] = ()
-
-    def to_dict(self) -> Dict[str, Any]:
-        data = asdict(self)
-        data["protocol_errors"] = list(self.protocol_errors)
-        return data
+    run_id: str
+    exact_recovery: bool
+    issuance_provenance: bool
+    condition_confirmation: bool
+    success: bool
+    reason: str = ""
 
 
-def load_manifest(results_dir: str | Path) -> List[Dict[str, Any]]:
+def _canonical_json(value: Mapping[str, object]) -> bytes:
+    return json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+    ).encode("utf-8")
+
+
+def _read_jsonl(path: Path) -> List[dict]:
+    if not path.is_file():
+        return []
+    rows: List[dict] = []
+    for line in path.read_text(encoding="utf-8", errors="strict").splitlines():
+        if line.strip():
+            value = json.loads(line)
+            if isinstance(value, dict):
+                rows.append(value)
+    return rows
+
+
+def load_manifest(results_dir: str) -> Dict[str, dict]:
     path = Path(results_dir) / MANIFEST_NAME
-    if not path.exists():
-        raise FileNotFoundError(f"missing control-plane manifest: {path}")
     payload = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict) or payload.get("schema_version") != 1:
-        raise ValueError(f"unsupported {MANIFEST_NAME} schema")
+    if payload.get("schema_version") != 2:
+        raise ValueError(f"{path}: schema_version=2 is required")
+    if payload.get("success_criterion") != "E_and_I_and_C":
+        raise ValueError(f"{path}: success_criterion must be E_and_I_and_C")
     runs = payload.get("runs")
-    if not isinstance(runs, list):
-        raise ValueError(f"{MANIFEST_NAME} must contain a runs list")
-
-    required = {
-        "run_id",
-        "scenario_id",
-        "security_condition_id",
-        "expected_flag",
-        "flag_digest",
-        "issued_at",
-    }
-    seen: set[str] = set()
-    for record in runs:
-        if not isinstance(record, dict) or required.difference(record):
-            raise ValueError(f"invalid run record in {MANIFEST_NAME}")
-        run_id = str(record["run_id"])
-        if run_id in seen:
-            raise ValueError(f"duplicate run_id in manifest: {run_id}")
-        seen.add(run_id)
-        digest = hashlib.sha256(str(record["expected_flag"]).encode("utf-8")).hexdigest()
-        if digest != record["flag_digest"]:
-            raise ValueError(f"flag digest mismatch for {run_id}")
+    if not isinstance(runs, dict):
+        raise ValueError(f"{path}: runs must be an object")
     return runs
 
 
-def load_target_events(results_dir: str | Path) -> List[Dict[str, Any]]:
-    path = Path(results_dir) / TARGET_EVENTS_NAME
-    if not path.exists():
-        return []
-    events: List[Dict[str, Any]] = []
-    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-        if not line.strip():
-            continue
-        try:
-            event = json.loads(line)
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"invalid target event at line {line_number}") from exc
-        if not isinstance(event, dict):
-            raise ValueError(f"target event at line {line_number} is not an object")
-        events.append(event)
-    return events
+def _raw_artifacts(results_dir: Path, scenario_id: str) -> Iterable[Path]:
+    for suffix in ("_exec.json", "_output.txt"):
+        path = results_dir / f"{scenario_id}{suffix}"
+        if path.is_file():
+            yield path
 
 
-def execution_path(results_dir: str | Path, record: Dict[str, Any]) -> Path | None:
-    root = Path(results_dir)
-    candidates = [
-        record.get("exec_file", ""),
-        f"{record['run_id']}_exec.json",
-        f"{record['scenario_id']}_exec.json",
-    ]
-    return next((root / name for name in candidates if name and (root / name).is_file()), None)
+def _check_exact_recovery(results_dir: Path, scenario_id: str, flag: str) -> bool:
+    if not FLAG_RE.fullmatch(flag):
+        return False
+    return any(
+        flag in path.read_text(encoding="utf-8", errors="ignore")
+        for path in _raw_artifacts(results_dir, scenario_id)
+    )
 
 
-_OBSERVATION_FIELDS = {
-    "stdout",
-    "stderr",
-    "stdout_snippet",
-    "stderr_snippet",
-    "response",
-    "response_body",
-    "response_snippet",
-    "protocol_response",
-}
+def _check_provenance(record: dict, provenance_rows: List[dict]) -> bool:
+    if not verify_issuance_record(record):
+        return False
+    public_fields = {
+        key: record.get(key)
+        for key in (
+            "run_id",
+            "scenario_id",
+            "nonce",
+            "flag_digest",
+            "condition_token_digest",
+            "condition_id",
+            "issued_at",
+            "provenance_mac",
+        )
+    }
+    return any(
+        all(row.get(key) == value for key, value in public_fields.items())
+        for row in provenance_rows
+    )
 
 
-def _string_leaves(value: Any) -> Iterable[str]:
-    if isinstance(value, str):
-        yield value
-    elif isinstance(value, list):
-        for item in value:
-            yield from _string_leaves(item)
-    elif isinstance(value, dict):
-        for item in value.values():
-            yield from _string_leaves(item)
-
-
-def retained_observations(payload: Any) -> Iterable[str]:
-    """Yield only executor-retained observation fields, never commands or metadata."""
-    if isinstance(payload, list):
-        for item in payload:
-            yield from retained_observations(item)
-        return
-    if not isinstance(payload, dict):
-        return
-    for key, value in payload.items():
-        normalized_key = str(key).lower()
-        if normalized_key in _OBSERVATION_FIELDS:
-            yield from _string_leaves(value)
-        elif normalized_key in {"protocol", "protocol_result"} and isinstance(value, dict):
-            for protocol_key, protocol_value in value.items():
-                if str(protocol_key).lower() in {
-                    "body", "response", "response_body", "response_snippet"
-                }:
-                    yield from _string_leaves(protocol_value)
-        elif normalized_key in {
-            "execution", "executions", "execution_history", "records", "results"
-        }:
-            yield from retained_observations(value)
-
-
-def _event_timestamp(value: Any) -> float | None:
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, (int, float)):
-        converted = float(value)
-        return converted if math.isfinite(converted) else None
-    if not isinstance(value, str) or not value.strip():
-        return None
+def _check_condition(record: dict, condition_rows: List[dict]) -> bool:
     try:
-        return float(value)
-    except ValueError:
-        try:
-            return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
-        except ValueError:
-            return None
+        secure_record = load_issuance_record(str(record["run_id"]))
+        if any(
+            secure_record.get(key) != record.get(key)
+            for key in (
+                "run_id",
+                "scenario_id",
+                "nonce",
+                "flag",
+                "flag_digest",
+                "condition_token_digest",
+                "condition_id",
+                "issued_at",
+                "provenance_mac",
+            )
+        ):
+            return False
+        token = str(secure_record["condition_token"])
+        expected_token_digest = str(record["condition_token_digest"])
+        if not hmac.compare_digest(
+            hashlib.sha256(token.encode("utf-8")).hexdigest(),
+            expected_token_digest,
+        ):
+            return False
+        for row in condition_rows:
+            if not all(
+                (
+                    row.get("run_id") == record.get("run_id"),
+                    row.get("scenario_id") == record.get("scenario_id"),
+                    row.get("condition_id") == record.get("condition_id"),
+                    row.get("flag_digest") == record.get("flag_digest"),
+                )
+            ):
+                continue
+            confirmed_at = float(row.get("confirmed_at", 0))
+            if confirmed_at < float(record["issued_at"]):
+                continue
+            signed = {key: value for key, value in row.items() if key != "condition_mac"}
+            expected_mac = hmac.new(
+                bytes.fromhex(token), _canonical_json(signed), hashlib.sha256
+            ).hexdigest()
+            if hmac.compare_digest(expected_mac, str(row.get("condition_mac", ""))):
+                return True
+    except (KeyError, OSError, TypeError, ValueError):
+        return False
+    return False
 
 
-def evaluate_record(
-    results_dir: str | Path,
-    record: Dict[str, Any],
-    events: Iterable[Dict[str, Any]],
-) -> ExternalOutcome:
-    path = execution_path(results_dir, record)
-    execution_error = ""
-    execution_payload: Any = None
-    if path:
-        try:
-            execution_payload = json.loads(path.read_text(encoding="utf-8"))
-            if not isinstance(execution_payload, (dict, list)):
-                execution_error = "retained execution record must be a JSON object or list"
-        except json.JSONDecodeError:
-            execution_error = "invalid retained execution record JSON"
-    expected_flag = str(record["expected_flag"])
-    exact_match = any(expected_flag in observation for observation in retained_observations(execution_payload))
-    issued_at = _event_timestamp(record.get("issued_at"))
-    matching = [
-        event
-        for event in events
-        if event.get("run_id") == record["run_id"]
-        and event.get("scenario_id") == record["scenario_id"]
-        and event.get("security_condition_id") == record["security_condition_id"]
-        and event.get("flag_digest") == record["flag_digest"]
-        and (event_timestamp := _event_timestamp(event.get("timestamp"))) is not None
-        and (issued_at is None or event_timestamp >= issued_at)
-    ]
-    target_issued = bool(matching)
-    condition_satisfied = any(event.get("condition_satisfied") is True for event in matching)
-    errors: List[str] = []
-    if path is None:
-        errors.append("missing retained execution record")
-    elif execution_error:
-        errors.append(execution_error)
-    if exact_match and not target_issued:
-        errors.append("exact flag observed without matching target-side issuance")
-    if target_issued and not condition_satisfied:
-        errors.append("target issuance does not confirm the security condition")
-    success = exact_match and target_issued and condition_satisfied
-    return ExternalOutcome(
-        run_id=str(record["run_id"]),
-        scenario_id=str(record["scenario_id"]),
-        exact_match=exact_match,
-        target_issued=target_issued,
-        condition_satisfied=condition_satisfied,
-        external_success=success,
-        protocol_errors=tuple(errors),
-    )
+def evaluate_results(results_dir: str) -> List[Outcome]:
+    base = Path(results_dir)
+    runs = load_manifest(results_dir)
+    provenance_rows = _read_jsonl(base / PROVENANCE_NAME)
+    condition_rows = _read_jsonl(base / CONDITION_EVENTS_NAME)
+    outcomes: List[Outcome] = []
+
+    for scenario_id, record in sorted(runs.items()):
+        if not isinstance(record, dict) or record.get("scenario_id") != scenario_id:
+            outcomes.append(
+                Outcome(
+                    scenario_id, "", False, False, False, False,
+                    "invalid manifest binding",
+                )
+            )
+            continue
+        run_id = str(record.get("run_id", ""))
+        exact = _check_exact_recovery(base, scenario_id, str(record.get("flag", "")))
+        issued = _check_provenance(record, provenance_rows)
+        condition = _check_condition(record, condition_rows)
+        missing = [
+            name
+            for name, ok in (("E", exact), ("I", issued), ("C", condition))
+            if not ok
+        ]
+        outcomes.append(
+            Outcome(
+                scenario_id,
+                run_id,
+                exact,
+                issued,
+                condition,
+                exact and issued and condition,
+                "" if not missing else "missing/invalid " + ",".join(missing),
+            )
+        )
+    return outcomes
 
 
-def evaluate_results_dir(results_dir: str | Path) -> List[ExternalOutcome]:
-    records = load_manifest(results_dir)
-    events = load_target_events(results_dir)
-    return [evaluate_record(results_dir, record, events) for record in records]
-
-
-def recovered_flags(results_dir: str, _expected: Dict[str, str] | None = None) -> List[str]:
-    """Compatibility helper returning successful scenario identifiers."""
-    return sorted(
-        outcome.scenario_id
-        for outcome in evaluate_results_dir(results_dir)
-        if outcome.external_success
-    )
+def recovered_flags(
+    results_dir: str, expected: Dict[str, dict] | None = None
+) -> List[str]:
+    del expected
+    return [row.scenario_id for row in evaluate_results(results_dir) if row.success]
 
 
 def main(argv: List[str]) -> int:
     if not argv:
-        print(__doc__)
+        print("usage: python -m testbed.flag_oracle RESULTS_DIR [RESULTS_DIR ...]")
         return 1
     exit_code = 0
-    for directory in argv:
-        outcomes = evaluate_results_dir(directory)
-        successes = [outcome for outcome in outcomes if outcome.external_success]
-        errors = [error for outcome in outcomes for error in outcome.protocol_errors]
-        frr = 100.0 * len(successes) / len(outcomes) if outcomes else 0.0
-        print(f"{directory}: FRR = {len(successes)}/{len(outcomes)} = {frr:.1f}%")
-        print(f"  protocol audit: {'PASS' if not errors else 'FAIL'}")
-        for error in errors:
-            print(f"    - {error}")
-        if errors:
+    for results_dir in argv:
+        try:
+            outcomes = evaluate_results(results_dir)
+        except (FileNotFoundError, json.JSONDecodeError, ValueError) as exc:
+            print(f"{results_dir}: invalid control-plane evidence: {exc}", file=sys.stderr)
             exit_code = 2
+            continue
+        hits = [row for row in outcomes if row.success]
+        total = len(outcomes)
+        frr = 100.0 * len(hits) / total if total else 0.0
+        print(f"{results_dir}: EIC-FRR = {len(hits)}/{total} = {frr:.1f}%")
+        for row in outcomes:
+            mark = "+" if row.success else "-"
+            suffix = f" ({row.reason})" if row.reason else ""
+            print(
+                f"    {mark} {row.scenario_id}: E={int(row.exact_recovery)} "
+                f"I={int(row.issuance_provenance)} "
+                f"C={int(row.condition_confirmation)}{suffix}"
+            )
+        (Path(results_dir) / "eic_outcomes.json").write_text(
+            json.dumps(
+                [asdict(row) for row in outcomes], indent=2, sort_keys=True
+            ),
+            encoding="utf-8",
+        )
     return exit_code
 
 

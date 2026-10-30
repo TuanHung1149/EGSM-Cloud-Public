@@ -1,6 +1,6 @@
-# cage_cloud
+# egsm_cloud
 
-This package contains the main CAGE-Cloud runtime.
+This package contains the main EGSM-Cloud runtime.
 
 - `orchestrator.py`: planner/generator loop with tentative execution, verifier
   gating, and authoritative state commit.

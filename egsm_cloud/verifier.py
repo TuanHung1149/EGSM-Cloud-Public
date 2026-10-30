@@ -22,7 +22,7 @@ from __future__ import annotations
 from datetime import datetime
 import re
 from typing import Any, Dict, List, Optional, Set
-from cage_cloud.schema import ObjectiveType, VerificationStatus
+from egsm_cloud.schema import ObjectiveType, VerificationStatus
 
 
 def _as_set(values: Any) -> Set[str]:

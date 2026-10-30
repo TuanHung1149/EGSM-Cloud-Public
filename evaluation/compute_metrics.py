@@ -18,7 +18,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Sequence
 
-from testbed.flag_oracle import evaluate_results_dir, load_manifest
+from testbed.flag_oracle import evaluate_results, load_manifest
 
 
 EXPECTED_BACKBONES = 6
@@ -78,8 +78,8 @@ def _llm_metrics(state: Dict[str, Any]) -> tuple[int, int, int, int]:
 
 def load_runs(results_dir: str | Path) -> List[RunMetrics]:
     root = Path(results_dir)
-    records = load_manifest(root)
-    outcomes = {item.run_id: item for item in evaluate_results_dir(root)}
+    records = list(load_manifest(str(root)).values())
+    outcomes = {item.run_id: item for item in evaluate_results(str(root))}
     runs: List[RunMetrics] = []
     seen_cells: set[tuple[str, str, str]] = set()
     for record in records:
@@ -100,8 +100,8 @@ def load_runs(results_dir: str | Path) -> List[RunMetrics]:
                 backbone=backbone,
                 severity=str(record.get("severity") or state.get("severity") or ""),
                 cloud_type=str(record.get("cloud_type") or state.get("cloud_type") or ""),
-                flag_recovered=int(outcome.external_success),
-                protocol_valid=int(not outcome.protocol_errors),
+                flag_recovered=int(outcome.success),
+                protocol_valid=int(outcome.issuance_provenance),
                 vulnerability_indicators=_count(state.get("vulnerabilities_found", [])),
                 exploit_activity=(
                     _count(state.get("exploits_successful", []))
@@ -274,14 +274,14 @@ def exact_mcnemar(left: Sequence[int], right: Sequence[int]) -> float:
 
 def matched_comparisons(runs: Sequence[RunMetrics]) -> List[Dict[str, Any]]:
     architectures = sorted({run.architecture for run in runs})
-    cage_names = [name for name in architectures if name.lower() in {"cage-cloud", "cloudpentest", "cage_cloud"}]
-    if not cage_names:
+    egsm_names = [name for name in architectures if name.lower() in {"egsm-cloud", "egsm_cloud", "egsmcloud"}]
+    if not egsm_names:
         return []
-    cage = cage_names[0]
+    egsm = egsm_names[0]
     comparisons: List[Dict[str, Any]] = []
-    for baseline in (name for name in architectures if name != cage):
+    for baseline in (name for name in architectures if name != egsm):
         for backbone in sorted({run.backbone for run in runs}):
-            left = {run.cve: run.flag_recovered for run in runs if run.architecture == cage and run.backbone == backbone}
+            left = {run.cve: run.flag_recovered for run in runs if run.architecture == egsm and run.backbone == backbone}
             right = {run.cve: run.flag_recovered for run in runs if run.architecture == baseline and run.backbone == backbone}
             common = sorted(left.keys() & right.keys())
             if common:

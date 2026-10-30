@@ -3,7 +3,7 @@
 This document defines the minimum requirements for describing this repository
 as an artifact accompanying paper version 11:
 
-> CAGE-Cloud: Evidence-Grounded Autonomous Cloud Penetration Testing with
+> EGSM-Cloud: Evidence-Grounded Autonomous Cloud Penetration Testing with
 > Authoritative Structured State
 
 ## Current Artifact Boundary

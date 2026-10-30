@@ -15,7 +15,7 @@ import shlex
 from typing import Any, Dict, Iterable, List, Optional
 from urllib.parse import urlparse
 
-from cage_cloud.schema import BudgetSnapshot
+from egsm_cloud.schema import BudgetSnapshot
 
 
 @dataclass

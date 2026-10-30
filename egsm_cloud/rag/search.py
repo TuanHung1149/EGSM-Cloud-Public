@@ -34,7 +34,7 @@ DATASET_ROOT = Path(
 DEFAULT_INDEX_DIR = Path(
     os.environ.get(
         "RAG_INDEX_DIR",
-        "/root/NCKH/CloudPentest/rag_index",
+        "/root/NCKH/EGSM-Cloud/rag_index",
     )
 )
 

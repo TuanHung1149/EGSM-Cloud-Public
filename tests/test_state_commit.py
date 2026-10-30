@@ -1,4 +1,4 @@
-from cage_cloud.state_commit import finalize_transition
+from egsm_cloud.state_commit import finalize_transition
 
 
 def test_finalize_transition_rolls_back_unverified_changes():

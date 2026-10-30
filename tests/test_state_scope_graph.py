@@ -1,8 +1,8 @@
 import json
 
-from cage_cloud.graph import GraphState, progress_signature
-from cage_cloud.scope_guard import ScopeGuard, ScopePolicy
-from cage_cloud.state_commit import finalize_transition
+from egsm_cloud.graph import GraphState, progress_signature
+from egsm_cloud.scope_guard import ScopeGuard, ScopePolicy
+from egsm_cloud.state_commit import finalize_transition
 from testbed.target_event import emit_target_event
 
 
@@ -94,12 +94,14 @@ def test_progress_signature_excludes_dead_current_credentials():
 
 
 def test_emit_target_event_writes_digest(tmp_path, monkeypatch):
-    monkeypatch.setenv("CAGE_RUN_ID", "run-1")
-    monkeypatch.setenv("CAGE_SCENARIO_ID", "CVE-2024-0001")
-    monkeypatch.setenv("CAGE_SECURITY_CONDITION_ID", "condition-1")
-    output = tmp_path / "target_events.jsonl"
+    monkeypatch.setenv("EGSM_RUN_ID", "run-1")
+    monkeypatch.setenv("EGSM_SCENARIO_ID", "CVE-2024-0001")
+    monkeypatch.setenv("EGSM_CONDITION_ID", "condition-1")
+    monkeypatch.setenv("EGSM_CONDITION_TOKEN", "cd" * 32)
+    output = tmp_path / "condition_events.jsonl"
     event = emit_target_event("FLAG{dynamic}", events_file=str(output))
     row = json.loads(output.read_text(encoding="utf-8").strip())
     assert row["run_id"] == "run-1"
     assert row["flag_digest"] == event["flag_digest"]
-    assert row["condition_satisfied"] is True
+    assert row["condition_id"] == "condition-1"
+    assert row["condition_mac"]

@@ -16,8 +16,8 @@ def _run(run_id: str, cve: str, architecture: str, backbone: str, flag: int) -> 
 def test_summarize_reports_cluster_bootstrap_bounds():
     runs = []
     for idx in range(6):
-        runs.append(_run(f"a-{idx}", "CVE-1", "CAGE-Cloud", f"bb-{idx}", 1))
-        runs.append(_run(f"b-{idx}", "CVE-2", "CAGE-Cloud", f"bb-{idx}", 0))
+        runs.append(_run(f"a-{idx}", "CVE-1", "EGSM-Cloud", f"bb-{idx}", 1))
+        runs.append(_run(f"b-{idx}", "CVE-2", "EGSM-Cloud", f"bb-{idx}", 0))
 
     summary = summarize(runs)
 
@@ -29,10 +29,10 @@ def test_summarize_reports_cluster_bootstrap_bounds():
 def test_coverage_by_architecture_tracks_any_and_all_backbones():
     runs = []
     for idx in range(6):
-        runs.append(_run(f"a-{idx}", "CVE-1", "CAGE-Cloud", f"bb-{idx}", 1))
-        runs.append(_run(f"b-{idx}", "CVE-2", "CAGE-Cloud", f"bb-{idx}", 1 if idx == 0 else 0))
+        runs.append(_run(f"a-{idx}", "CVE-1", "EGSM-Cloud", f"bb-{idx}", 1))
+        runs.append(_run(f"b-{idx}", "CVE-2", "EGSM-Cloud", f"bb-{idx}", 1 if idx == 0 else 0))
 
-    coverage = coverage_by_architecture(runs)["CAGE-Cloud"]
+    coverage = coverage_by_architecture(runs)["EGSM-Cloud"]
 
     assert coverage["scenarios"] == 2
     assert coverage["covered_any"] == 2

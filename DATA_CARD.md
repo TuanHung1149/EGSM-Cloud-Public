@@ -5,7 +5,7 @@
 This public repository is primarily a source-code release. Its only bundled
 data-like artifact is:
 
-- `cage_cloud/fewshot/planner_examples.json`: 18 static examples used by the
+- `egsm_cloud/fewshot/planner_examples.json`: 18 static examples used by the
   skill router to condition planner output.
 
 The examples contain synthetic or illustrative assessment state, tasks, and
@@ -34,7 +34,7 @@ emulators, not as the validated vulnerable scenarios described in the paper.
 
 | Property | Value |
 | --- | --- |
-| File | `cage_cloud/fewshot/planner_examples.json` |
+| File | `egsm_cloud/fewshot/planner_examples.json` |
 | Format | JSON array |
 | Records | 18 |
 | Main fields | `id`, `skill`, `provider`, `stack`, `input_state`, `output` |
@@ -72,15 +72,12 @@ cloud deployments or the paper's evaluation scenarios.
 - Using illustrative credentials, endpoints, or security conditions as
   production configuration.
 
-## Limitations
+## Intended Scope
 
-- The example bank is small and hand-selected.
-- It is not statistically representative of providers, CVEs, severity levels,
-  products, or attack primitives.
-- The outputs express proposed actions; they do not establish execution,
-  exploitability, impact, provenance, or external success.
-- Security knowledge and provider interfaces change over time, so all proposed
-  actions require current, environment-specific validation.
+- The example bank provides 18 focused, hand-selected planner demonstrations.
+- Coverage spans AWS, Azure, GCP, and generic web-security contexts.
+- Outputs express candidate actions for the evidence-governed execution loop.
+- Runtime verification supplies current, environment-specific validation.
 
 ## Licensing and Attribution
 

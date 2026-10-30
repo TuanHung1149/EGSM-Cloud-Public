@@ -2,7 +2,7 @@
 
 ## Intended Use
 
-CAGE-Cloud is dual-use security research software. Use it only against isolated
+EGSM-Cloud is dual-use security research software. Use it only against isolated
 systems that you own or systems for which you have explicit written
 authorisation. Do not expose intentionally vulnerable services to public or
 untrusted networks.
@@ -32,7 +32,7 @@ this repository. Include:
 - a proposed mitigation, if available.
 
 If private GitHub reporting is unavailable, contact the corresponding author at
-`haupv@uit.edu.vn` with the subject `CAGE-Cloud security report`. Encrypt or
+`haupv@uit.edu.vn` with the subject `EGSM-Cloud security report`. Encrypt or
 redact sensitive material before sending it. A maintainer should acknowledge a
 complete report within seven days; remediation timing depends on severity and
 the need to coordinate disclosure.

@@ -17,13 +17,13 @@ Usage (the Planner/Generator are served by any OpenAI-compatible endpoint;
 configure API_URL / API_KEY via env vars or the CLI flags below):
 
     # Web target
-    python -m cage_cloud.orchestrator \
+    python -m egsm_cloud.orchestrator \
         --api-url "$API_URL" --api-key "$API_KEY" \
         --target-url "http://localhost:8080" \
         --target "Spring Boot Actuator, found /actuator endpoints exposed"
 
     # AWS scenario (synthetic lab credentials only)
-    python -m cage_cloud.orchestrator \
+    python -m egsm_cloud.orchestrator \
         --api-url "$API_URL" --api-key "$API_KEY" \
         --target "Pentest AWS account" \
         --aws-profile my-lab-profile
@@ -45,11 +45,11 @@ from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 import requests
-from cage_cloud.schema import BudgetSnapshot
+from egsm_cloud.schema import BudgetSnapshot
 
 # RAG Integration
 try:
-    from cage_cloud.rag.integration import RAGIntegration
+    from egsm_cloud.rag.integration import RAGIntegration
     _rag_instance = RAGIntegration()
     RAG_AVAILABLE = True
 except Exception:
@@ -58,7 +58,7 @@ except Exception:
 
 # Graph state (v2 — full persistent graph with failure tracking)
 try:
-    from cage_cloud.graph import build_graph_lite_state, progress_signature
+    from egsm_cloud.graph import build_graph_lite_state, progress_signature
     GRAPH_LITE_AVAILABLE = True
 except Exception:
     GRAPH_LITE_AVAILABLE = False
@@ -67,7 +67,7 @@ except Exception:
 
 # Skill Router — few-shot retrieval for Planner
 try:
-    from cage_cloud.skill_router import (
+    from egsm_cloud.skill_router import (
         route_planner_skill,
         infer_provider,
         infer_stack,
@@ -83,7 +83,7 @@ except Exception:
 
 # Rule-based evidence verifier (v2 — 17-objective verifier)
 try:
-    from cage_cloud.verifier import verify_task_execution
+    from egsm_cloud.verifier import verify_task_execution
     EVIDENCE_VERIFIER_AVAILABLE = True
 except Exception:
     EVIDENCE_VERIFIER_AVAILABLE = False
@@ -91,7 +91,7 @@ except Exception:
 
 # Deterministic commit gate for authoritative state
 try:
-    from cage_cloud.state_commit import finalize_transition
+    from egsm_cloud.state_commit import finalize_transition
     STATE_COMMIT_AVAILABLE = True
 except Exception:
     STATE_COMMIT_AVAILABLE = False
@@ -99,7 +99,7 @@ except Exception:
 
 # Scope guard for executor-side enforcement
 try:
-    from cage_cloud.scope_guard import ScopeGuard, ScopePolicy
+    from egsm_cloud.scope_guard import ScopeGuard, ScopePolicy
     SCOPE_GUARD_AVAILABLE = True
 except Exception:
     SCOPE_GUARD_AVAILABLE = False
@@ -3981,7 +3981,7 @@ class AIDrivenPipeline:
                     # Track failure in graph for replanning decisions
                     if GRAPH_LITE_AVAILABLE and self.state.get("graph_lite"):
                         try:
-                            from cage_cloud.graph import GraphState
+                            from egsm_cloud.graph import GraphState
                             current_task = task_context or {}
                             graph = GraphState()
                             graph.add_failure(
@@ -4332,17 +4332,17 @@ if __name__ == "__main__":
         epilog="""
 Examples:
   # AWS target with web app
-  python -m cage_cloud.orchestrator --target "Spring Boot on AWS EC2" --target-url http://target:8080
+  python -m egsm_cloud.orchestrator --target "Spring Boot on AWS EC2" --target-url http://target:8080
 
   # Azure target
-  python -m cage_cloud.orchestrator --target "Azure web app with KeyVault" \\
+  python -m egsm_cloud.orchestrator --target "Azure web app with KeyVault" \\
     --azure-client-id <id> --azure-client-secret <secret> --azure-tenant-id <tenant>
 
   # GCP target
-  python -m cage_cloud.orchestrator --target "GCP Cloud Run service" --gcp-project my-project
+  python -m egsm_cloud.orchestrator --target "GCP Cloud Run service" --gcp-project my-project
 
   # Multi-cloud
-  python -m cage_cloud.orchestrator --target "AWS S3 + Azure Blob + GCP GCS storage audit"
+  python -m egsm_cloud.orchestrator --target "AWS S3 + Azure Blob + GCP GCS storage audit"
         """,
     )
 
